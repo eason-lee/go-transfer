@@ -1,0 +1,27 @@
+server_name: transfer1
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  db: 6
+  password: ~
+
+mysql:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: !!str 123456
+  database: ~
+  charset: utf8
+
+kafka:
+  address: [127.0.0.1:9092]
+
+etcd:
+  address: [127.0.0.1:2379]
+
+Elasticsearch:
+  url: http://127.0.0.1:9200
+  etcd_key: server-%s-conf
+  chan_max_size: 100000
+  sender_nums: 4
