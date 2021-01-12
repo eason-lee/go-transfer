@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"sync"
 	"time"
+	"go-transfer/etcd"
 
 	"github.com/olivere/elastic"
 )
@@ -13,12 +15,15 @@ import (
 var client *elastic.Client
 
 // EsDataChan 消息发送通道
-var EsDataChan chan *EsData
+var EsDataChan chan *esData
 
-type EsData struct {
-	Index string
-	Type  string
-	Data  *map[string]interface{}
+type esData struct {
+	index     string
+	esType    string
+	topic     string
+	data      *map[string]interface{}
+	partition int32
+	offset    int64
 }
 
 // Init 初始化
@@ -28,17 +33,20 @@ func Init(esURL string, chanMaxSize int) (err error) {
 		return
 	}
 
-	fmt.Println("ES connect to es success")
-	EsDataChan = make(chan *EsData, chanMaxSize)
+	log.Println("ElasticSearch connect to es success")
+	EsDataChan = make(chan *esData, chanMaxSize)
 	return
 }
 
 // SendToChan 发送数据到通道
-func SendToChan(index, estype string, data *map[string]interface{}) {
-	d := EsData{
-		Index: index,
-		Type:  estype,
-		Data:  data,
+func SendToChan(index, estype string, topic string, data *map[string]interface{}, partition int32, offset int64) {
+	d := esData{
+		index:     index,
+		esType:    estype,
+		topic:     topic,
+		data:      data,
+		partition: partition,
+		offset:    offset,
 	}
 	EsDataChan <- &d
 }
@@ -51,9 +59,9 @@ func Run(senderNums int) {
 		go func() {
 			for {
 				select {
-				case esData := <-EsDataChan:
+				case msg := <-EsDataChan:
 					// 发送消息
-					go sendData(esData.Index, esData.Type, esData.Data)
+					go sendData(msg)
 				default:
 					time.Sleep(time.Millisecond * 5)
 				}
@@ -68,13 +76,13 @@ func Run(senderNums int) {
 
 }
 
-func sendData(index, estype string, data interface{}) {
+func sendData(msg *esData) {
 	log.Printf(" kafka 发送消息 \n")
 
 	put1, err := client.Index().
-		Index(index).
-		Type(estype).
-		BodyJson(data).
+		Index(msg.index).
+		Type(msg.esType).
+		BodyJson(msg.data).
 		Do(context.Background())
 
 	if err != nil {
@@ -82,6 +90,9 @@ func sendData(index, estype string, data interface{}) {
 		return
 	}
 	log.Printf(" kafka 发送消息成功\n")
+	// 保存 offset 到 etcd 里
+	key := etcd.GetOffsetKey(msg.partition, msg.topic)
+	etcd.Put(key, strconv.FormatInt(msg.offset, 10))
 	fmt.Printf("Indexed %s to index %s, type %s\n", put1.Id, put1.Index, put1.Type)
 	return
 }
