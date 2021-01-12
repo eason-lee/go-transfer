@@ -3,11 +3,11 @@ package es
 import (
 	"context"
 	"fmt"
+	"go-transfer/etcd"
 	"log"
 	"strconv"
 	"sync"
 	"time"
-	"go-transfer/etcd"
 
 	"github.com/olivere/elastic"
 )
@@ -52,24 +52,22 @@ func SendToChan(index, estype string, topic string, data *map[string]interface{}
 }
 
 // Run 循环发送数据到 ES
-func Run(senderNums int) {
+func Run() {
 	var wg sync.WaitGroup
-	// 多个协程发送消息
-	for i := 0; i < senderNums; i++ {
-		go func() {
-			for {
-				select {
-				case msg := <-EsDataChan:
-					// 发送消息
-					go sendData(msg)
-				default:
-					time.Sleep(time.Millisecond * 5)
-				}
-
+	// FIXME 多个协程发送消息，从 kafka 的同一个分区同时拉取到多条数据，会导致 offset 不准确
+	go func() {
+		for {
+			select {
+			case msg := <-EsDataChan:
+				// 发送消息
+				sendData(msg)
+			default:
+				time.Sleep(time.Millisecond * 5)
 			}
-		}()
 
-	}
+		}
+	}()
+
 	wg.Add(1)
 
 	wg.Wait()
@@ -77,7 +75,7 @@ func Run(senderNums int) {
 }
 
 func sendData(msg *esData) {
-	log.Printf(" kafka 发送消息 \n")
+	log.Printf(" kafka 发送消息 %v\n", msg.data)
 
 	put1, err := client.Index().
 		Index(msg.index).
@@ -89,7 +87,7 @@ func sendData(msg *esData) {
 		log.Printf("kafka 发送消息失败 : %v", err)
 		return
 	}
-	log.Printf(" kafka 发送消息成功\n")
+	log.Printf(" kafka 发送消息成功 %v  offset %d\n", msg.data, msg.offset)
 	// 保存 offset 到 etcd 里
 	key := etcd.GetOffsetKey(msg.partition, msg.topic)
 	etcd.Put(key, strconv.FormatInt(msg.offset, 10))

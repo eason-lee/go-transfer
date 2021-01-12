@@ -34,5 +34,5 @@ func main() {
 	initServer()
 
 	// 启动 服务
-	es.Run(config.Conf.EsConf.SerderNums)
+	es.Run()
 }

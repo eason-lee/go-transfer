@@ -90,7 +90,7 @@ func getFileOffset(partition int32, topic string) (offset int64) {
 	key := etcd.GetOffsetKey(partition, topic)
 	offsetResp, err := etcd.Get(key)
 	offset = int64(0)
-	// FIXME 重复消费问题
+
 	if err == nil {
 		for _, ev := range offsetResp.Kvs {
 			if ev.Value != nil {
