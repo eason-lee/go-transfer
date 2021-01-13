@@ -45,24 +45,10 @@ func init() {
 
 }
 
-// SendToChan 发送数据到通道
-func SendToChan(index, estype string, topic string, data *map[string]interface{}, partition int32, offset int64) {
-	d := esData{
-		index:     index,
-		esType:    estype,
-		topic:     topic,
-		data:      data,
-		partition: partition,
-		offset:    offset,
-	}
-	EsDataChan <- &d
-	offsetToEtcdChan <- &d
-}
-
-// Run 循环发送数据到 ES
+// Run 发送数据到 ES
 func Run() {
 	var wg sync.WaitGroup
-	// FIXME 这里不能使用多个协程发送消息，从 kafka 的同一个分区同时拉取到多条数据，会导致 offset 不准确
+
 	for i := 0; i < config.Conf.SerderNums; i++ {
 		go func() {
 			for {
@@ -82,21 +68,18 @@ func Run() {
 
 }
 
-func sendOffsetToEtcd() {
-	for {
-		select {
-		case msg := <-offsetToEtcdChan:
-			// 保存 offset 到 etcd 里
-			// 这里只有一个协程处理，会导致更新offset的速度，没有发送到es的速度快，程序意外退出时还有offset滞后问题
-			key := etcd.GetOffsetKey(msg.partition, msg.topic)
-			etcd.Put(key, strconv.FormatInt(msg.offset, 10))
-			log.Printf(" kafka 记录 offset 成功 %v  offset %d\n", msg.data, msg.offset)
-		default:
-			time.Sleep(time.Millisecond * 5)
-		}
-
+// SendToChan 发送数据到通道
+func SendToChan(index, estype string, topic string, data *map[string]interface{}, partition int32, offset int64) {
+	d := esData{
+		index:     index,
+		esType:    estype,
+		topic:     topic,
+		data:      data,
+		partition: partition,
+		offset:    offset,
 	}
-
+	EsDataChan <- &d
+	offsetToEtcdChan <- &d
 }
 
 func sendData(msg *esData) {
@@ -114,4 +97,21 @@ func sendData(msg *esData) {
 	log.Printf(" kafka 发送消息成功 %v  offset %d\n", msg.data, msg.offset)
 
 	return
+}
+
+func sendOffsetToEtcd() {
+	for {
+		select {
+		case msg := <-offsetToEtcdChan:
+			// 保存 offset 到 etcd 里
+			// 这里只有一个协程处理，会导致更新offset的速度，没有发送到es的速度快，程序意外退出时还有offset滞后问题
+			key := etcd.GetOffsetKey(msg.partition, msg.topic)
+			etcd.Put(key, strconv.FormatInt(msg.offset, 10))
+			log.Printf(" kafka 记录 offset 成功 %v  offset %d\n", msg.data, msg.offset)
+		default:
+			time.Sleep(time.Millisecond * 5)
+		}
+
+	}
+
 }
