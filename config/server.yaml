@@ -8,6 +8,6 @@ etcd:
 
 elasticsearch:
   url: http://127.0.0.1:9200
-  etcd_key: server-%s-conf
+  etcd_key: server-conf
   chan_max_size: 100000
   sender_nums: 4
