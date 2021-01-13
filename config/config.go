@@ -40,7 +40,7 @@ var Conf = new(ServerConf)
 func init() {
 	yamlFile, err := ioutil.ReadFile("config/server.yaml")
 	if err != nil {
-		log.Printf("yamlFile Get err #%v ", err)
+		log.Fatalf("yamlFile Get err #%v ", err)
 	}
 	err = yaml.Unmarshal(yamlFile, Conf)
 	if err != nil {

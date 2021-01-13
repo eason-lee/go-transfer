@@ -24,17 +24,18 @@ type TopicEsConf struct {
 }
 
 // Init 初始化 etcd
-func Init(address []string) (err error) {
+func init() {
+	var err error
 	client, err = clientv3.New(clientv3.Config{
-		Endpoints:   address,
+		Endpoints:   config.Conf.EtcdConf.Address,
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
-		return
+		log.Fatalln("etcd 初始化失败")
 	}
 	// 监听配置改动
+	log.Println("etcd 初始化成功")
 
-	return
 }
 
 // GetTopicEsConf 获取 topic 的 ES 配置
@@ -84,21 +85,15 @@ func GetOffsetKey(partition int32, topic string) string {
 }
 
 // WatchConf 监听配置改动
-func WatchConf(key string, upChan chan []*TopicEsConf) {
+func WatchConf(key string, f func([]byte) error) {
 	log.Printf("配置 watch 启动")
 	rch := client.Watch(context.Background(), key) // <-chan WatchResponse
 	for wresp := range rch {
 		for _, ev := range wresp.Events {
 			// 如果配置有修改，把数据发送到 chan 中
-			var updateConf []*TopicEsConf
-			log.Printf("监听到配置改动 %v\n", ev.Kv.Value)
-			err := json.Unmarshal(ev.Kv.Value, &updateConf)
-			if err != nil {
-				log.Printf("WatchConf Unmarshal err: %v", err)
+			if err := f(ev.Kv.Value); err != nil {
 				continue
 			}
-			upChan <- updateConf
-
 			log.Printf("监听到配置更新 Type: %s Key:%s Value:%s\n", ev.Type, ev.Kv.Key, ev.Kv.Value)
 		}
 	}

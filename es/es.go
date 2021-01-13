@@ -2,7 +2,7 @@ package es
 
 import (
 	"context"
-	"fmt"
+	"go-transfer/config"
 	"go-transfer/etcd"
 	"log"
 	"strconv"
@@ -17,6 +17,9 @@ var client *elastic.Client
 // EsDataChan 消息发送通道
 var EsDataChan chan *esData
 
+// 保存 offset 到 etcd
+var offsetToEtcdChan chan *esData
+
 type esData struct {
 	index     string
 	esType    string
@@ -27,15 +30,19 @@ type esData struct {
 }
 
 // Init 初始化
-func Init(esURL string, chanMaxSize int) (err error) {
-	client, err = elastic.NewClient(elastic.SetURL(esURL))
+func init() {
+	var err error
+	client, err = elastic.NewClient(elastic.SetURL(config.Conf.EsConf.URL))
 	if err != nil {
-		return
+		log.Fatalf("ElasticSearch 连接失败, err: %v\n", err)
 	}
 
-	log.Println("ElasticSearch connect to es success")
-	EsDataChan = make(chan *esData, chanMaxSize)
-	return
+	EsDataChan = make(chan *esData, config.Conf.EsConf.ChanMaxSize)
+	offsetToEtcdChan = make(chan *esData, config.Conf.EsConf.ChanMaxSize)
+	// 开启更新 etcd offset
+	go sendOffsetToEtcd()
+	log.Println("ElasticSearch 连接成功")
+
 }
 
 // SendToChan 发送数据到通道
@@ -49,35 +56,51 @@ func SendToChan(index, estype string, topic string, data *map[string]interface{}
 		offset:    offset,
 	}
 	EsDataChan <- &d
+	offsetToEtcdChan <- &d
 }
 
 // Run 循环发送数据到 ES
 func Run() {
 	var wg sync.WaitGroup
-	// FIXME 多个协程发送消息，从 kafka 的同一个分区同时拉取到多条数据，会导致 offset 不准确
-	go func() {
-		for {
-			select {
-			case msg := <-EsDataChan:
-				// 发送消息
-				sendData(msg)
-			default:
-				time.Sleep(time.Millisecond * 5)
+	// FIXME 这里不能使用多个协程发送消息，从 kafka 的同一个分区同时拉取到多条数据，会导致 offset 不准确
+	for i := 0; i < config.Conf.SerderNums; i++ {
+		go func() {
+			for {
+				select {
+				case msg := <-EsDataChan:
+					sendData(msg)
+				default:
+					time.Sleep(time.Millisecond * 5)
+				}
+
 			}
-
-		}
-	}()
-
+		}()
+	}
 	wg.Add(1)
 
 	wg.Wait()
 
 }
 
-func sendData(msg *esData) {
-	log.Printf(" kafka 发送消息 %v\n", msg.data)
+func sendOffsetToEtcd() {
+	for {
+		select {
+		case msg := <-offsetToEtcdChan:
+			// 保存 offset 到 etcd 里
+			// 这里只有一个协程处理，会导致更新offset的速度，没有发送到es的速度快，程序意外退出时还有offset滞后问题
+			key := etcd.GetOffsetKey(msg.partition, msg.topic)
+			etcd.Put(key, strconv.FormatInt(msg.offset, 10))
+			log.Printf(" kafka 记录 offset 成功 %v  offset %d\n", msg.data, msg.offset)
+		default:
+			time.Sleep(time.Millisecond * 5)
+		}
 
-	put1, err := client.Index().
+	}
+
+}
+
+func sendData(msg *esData) {
+	_, err := client.Index().
 		Index(msg.index).
 		Type(msg.esType).
 		BodyJson(msg.data).
@@ -85,12 +108,10 @@ func sendData(msg *esData) {
 
 	if err != nil {
 		log.Printf("kafka 发送消息失败 : %v", err)
+		// TODO 发送失败后重试或者错误上报
 		return
 	}
 	log.Printf(" kafka 发送消息成功 %v  offset %d\n", msg.data, msg.offset)
-	// 保存 offset 到 etcd 里
-	key := etcd.GetOffsetKey(msg.partition, msg.topic)
-	etcd.Put(key, strconv.FormatInt(msg.offset, 10))
-	fmt.Printf("Indexed %s to index %s, type %s\n", put1.Id, put1.Index, put1.Type)
+
 	return
 }

@@ -25,25 +25,23 @@ type ConsumerTask struct {
 type ConsumerTaskManager struct {
 	TaskMap map[string]*ConsumerTask
 	// 配置修改的通道
-	// todo 这个放到 etcd 里
 	UpdateConfChan chan []*etcd.TopicEsConf
 }
 
 // TaskManager 任务管理器
 var TaskManager = ConsumerTaskManager{
 	TaskMap:        make(map[string]*ConsumerTask, 64),
-	UpdateConfChan: make(chan []*etcd.TopicEsConf),
+	UpdateConfChan: make(chan []*etcd.TopicEsConf, 64),
 }
 var consumer sarama.Consumer
 
 // Init 初始化
-func Init() {
+func init() {
 	// 建立消费者连接 kafka
 	var err error
 	consumer, err = sarama.NewConsumer(config.Conf.KafkaConf.Address, nil)
 	if err != nil {
-		fmt.Printf("kafka 启动 consumer 失败, err:%v\n", err)
-		return
+		log.Fatalf("kafka 启动 consumer 失败, err:%v\n", err)
 	}
 	// 获取配置
 	key := fmt.Sprintf(config.Conf.EtcdKey, config.Conf.Name)
@@ -51,7 +49,6 @@ func Init() {
 	if err != nil {
 		log.Printf("从 etcd 获取配置失败：%v", err)
 	}
-	log.Printf("获取 etcd 配置成功 \n")
 
 	// 根据配置创建 消费者任务
 	for _, esConf := range esConfs {
@@ -61,7 +58,7 @@ func Init() {
 			esConf.Index,
 			esConf.Type,
 		)
-		log.Println("kafka 初始化成功, topic: ", esConf.Topic)
+		log.Println("kafka partition consumer 初始化成功, topic: ", esConf.Topic)
 
 	}
 
@@ -165,6 +162,22 @@ func createConsumer(ctx context.Context, topic, esIndex, esType string) (partiti
 // ListenUpdateConf 监听配置改动
 func (m *ConsumerTaskManager) listenUpdateConf() {
 	log.Println("启动监听配置改动")
+	// 启动 etcd wathch
+	fc := func(data []byte) (err error) {
+		var updateConf []*etcd.TopicEsConf
+		// log.Printf("监听到配置改动 %v\n", ev.Kv.Value)
+		err = json.Unmarshal(data, &updateConf)
+		if err != nil {
+			log.Printf("WatchConf Unmarshal err: %v", err)
+			return
+		}
+		log.Printf("配置改动---- %v\n", updateConf)
+		TaskManager.UpdateConfChan <- updateConf
+		return
+	}
+	go etcd.WatchConf(fmt.Sprintf(config.Conf.EtcdKey, config.Conf.Name),fc)
+
+
 	for {
 		select {
 		case up := <-m.UpdateConfChan:
@@ -182,7 +195,6 @@ func (m *ConsumerTaskManager) listenUpdateConf() {
 						confg.Type,
 					)
 				}
-
 			}
 			// 删除修改和删除的 TailTask
 			for _, existTask := range TaskManager.TaskMap {
