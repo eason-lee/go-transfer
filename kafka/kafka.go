@@ -67,21 +67,6 @@ func init() {
 
 }
 
-// NewConsumerTask 创建一个消费者
-func (m *ConsumerTaskManager) NewConsumerTask(topic, esIndex, esType string) {
-
-	// 创建消费任务
-	ctx, cancel := context.WithCancel(context.Background())
-	partitionCons := createConsumer(ctx, topic, esIndex, esType)
-	task := ConsumerTask{
-		Topic:     topic,
-		Consumers: partitionCons,
-		Ctx:       ctx,
-		Cancel:    cancel,
-	}
-	TaskManager.TaskMap[topic] = &task
-}
-
 // getFileOffset 获取文件的 offset
 func getFileOffset(partition int32, topic string) (offset int64) {
 	key := etcd.GetOffsetKey(partition, topic)
@@ -159,6 +144,21 @@ func createConsumer(ctx context.Context, topic, esIndex, esType string) (partiti
 
 }
 
+// NewConsumerTask 创建一个消费者
+func (m *ConsumerTaskManager) NewConsumerTask(topic, esIndex, esType string) {
+
+	// 创建消费任务
+	ctx, cancel := context.WithCancel(context.Background())
+	partitionCons := createConsumer(ctx, topic, esIndex, esType)
+	task := ConsumerTask{
+		Topic:     topic,
+		Consumers: partitionCons,
+		Ctx:       ctx,
+		Cancel:    cancel,
+	}
+	TaskManager.TaskMap[topic] = &task
+}
+
 // ListenUpdateConf 监听配置改动
 func (m *ConsumerTaskManager) listenUpdateConf() {
 	log.Println("启动监听配置改动")
@@ -175,8 +175,7 @@ func (m *ConsumerTaskManager) listenUpdateConf() {
 		TaskManager.UpdateConfChan <- updateConf
 		return
 	}
-	go etcd.WatchConf(fmt.Sprintf(config.Conf.EtcdKey, config.Conf.Name),fc)
-
+	go etcd.WatchConf(fmt.Sprintf(config.Conf.EtcdKey, config.Conf.Name), fc)
 
 	for {
 		select {
