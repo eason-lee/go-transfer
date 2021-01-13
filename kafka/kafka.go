@@ -7,6 +7,7 @@ import (
 	"go-transfer/config"
 	"go-transfer/es"
 	"go-transfer/etcd"
+	"go-transfer/utils"
 	"log"
 	"strconv"
 
@@ -44,8 +45,7 @@ func init() {
 		log.Fatalf("kafka 启动 consumer 失败, err:%v\n", err)
 	}
 	// 获取配置
-	key := fmt.Sprintf(config.Conf.EtcdKey, config.Conf.Name)
-	esConfs, err := etcd.GetTopicEsConf(key)
+	esConfs, err := etcd.GetTopicEsConf(utils.GetEsEtcdConfKey())
 	if err != nil {
 		log.Printf("从 etcd 获取配置失败：%v", err)
 	}
@@ -175,7 +175,7 @@ func (m *ConsumerTaskManager) listenUpdateConf() {
 		TaskManager.UpdateConfChan <- updateConf
 		return
 	}
-	go etcd.WatchConf(fmt.Sprintf(config.Conf.EtcdKey, config.Conf.Name), fc)
+	go etcd.WatchConf(utils.GetEsEtcdConfKey(), fc)
 
 	for {
 		select {
