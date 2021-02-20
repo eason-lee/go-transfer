@@ -38,9 +38,13 @@ func init() {
 	}
 
 	EsDataChan = make(chan *esData, config.Conf.EsConf.ChanMaxSize)
-	offsetToEtcdChan = make(chan *esData, config.Conf.EsConf.ChanMaxSize)
-	// 开启更新 etcd offset
-	go sendOffsetToEtcd()
+	if config.Conf.EnabledEsOffset {
+		// TODO 可使用 MarkOffset 把 offset 写入到 kafka 里，提高性能
+		offsetToEtcdChan = make(chan *esData, config.Conf.EsConf.ChanMaxSize)
+		// 开启更新 etcd offset
+		go sendOffsetToEtcd()
+	}
+
 	log.Println("ElasticSearch 连接成功")
 
 }
@@ -79,7 +83,9 @@ func SendToChan(index, estype string, topic string, data *map[string]interface{}
 		offset:    offset,
 	}
 	EsDataChan <- &d
-	offsetToEtcdChan <- &d
+	if config.Conf.EnabledEsOffset {
+		offsetToEtcdChan <- &d
+	}
 }
 
 func sendData(msg *esData) {
