@@ -11,3 +11,4 @@ elasticsearch:
   etcd_key: server-conf
   chan_max_size: 100000
   sender_nums: 4
+  enabled_es_offset: false

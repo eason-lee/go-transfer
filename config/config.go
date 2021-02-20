@@ -31,6 +31,7 @@ type EsConf struct {
 	EtcdKey     string `yaml:"etcd_key"`
 	ChanMaxSize int    `yaml:"chan_max_size"`
 	SerderNums  int    `yaml:"sender_nums"`
+	EnabledEsOffset  bool    `yaml:"enabled_es_offset"`
 }
 
 // Conf 配置

@@ -187,7 +187,7 @@ func (m *ConsumerTaskManager) listenUpdateConf() {
 				if ok {
 					continue
 				} else {
-					// 创建新的 TailTask
+					// 创建新的 Task
 					TaskManager.NewConsumerTask(
 						confg.Topic,
 						confg.Index,
@@ -195,7 +195,7 @@ func (m *ConsumerTaskManager) listenUpdateConf() {
 					)
 				}
 			}
-			// 删除修改和删除的 TailTask
+			// 删除修改和删除的 Task
 			for _, existTask := range TaskManager.TaskMap {
 				isDelete := true
 				for _, newConf := range up {
