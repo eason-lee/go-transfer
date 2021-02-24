@@ -114,8 +114,6 @@ func sendOffsetToEtcd() {
 			key := etcd.GetOffsetKey(msg.partition, msg.topic)
 			etcd.Put(key, strconv.FormatInt(msg.offset, 10))
 			log.Printf(" kafka 记录 offset 成功 %v  offset %d\n", msg.data, msg.offset)
-		default:
-			time.Sleep(time.Millisecond * 5)
 		}
 
 	}
