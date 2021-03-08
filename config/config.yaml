@@ -1,0 +1,36 @@
+server_name: transfer1
+
+kafka:
+  brokers: 
+    - 127.0.0.1:9092
+  group: transfer
+  topics: 
+    - log
+  offset: first
+  conns: 1
+  consumers: 8
+  processors: 8
+  min_bytes: 1048576
+  max_bytes: 10485760
+
+elasticsearch:
+  hosts: 
+    - http://127.0.0.1:9200
+  compress: false
+  index: user
+  doc_type: _doc
+  max_chunk_bytes: 10485760
+
+filters:
+  - action: update_field
+    Field: message
+    Target: data
+  - action: drop_field
+    fields:
+      - _source
+      - _type
+      - _score
+      - _id
+      - topic
+      - index
+      - offset
