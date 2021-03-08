@@ -5,6 +5,8 @@
 - 灵活配置数据的拉取和发送的 goroutine 数量
 - 服务优雅停止
 
+![alt](doc/log-transfer.jpg)
+
 ## 配置说明
 
 ### kafka
