@@ -11,7 +11,7 @@ import (
 const idleRound = 10
 
 type (
-	// A type that satisfies executors.TaskContainer can be used as the underlying
+	// TaskContainer A type that satisfies executors.TaskContainer can be used as the underlying
 	// container that used to do periodical executions.
 	TaskContainer interface {
 		// AddTask adds the task into the container.
@@ -19,14 +19,15 @@ type (
 		AddTask(task interface{}) bool
 		// Execute handles the collected tasks by the container when flushing.
 		Execute(tasks interface{})
-		// RemoveAll removes the contained tasks, and return them.
+		// RemoveAll remove 所有的 tasks 并返回 tasks
 		RemoveAll() interface{}
 	}
 
+	// Barrier 锁
 	Barrier struct {
 		lock sync.Mutex
 	}
-
+	// PeriodicalExecutor 时间执行器
 	PeriodicalExecutor struct {
 		commander chan interface{}
 		interval  time.Duration
@@ -41,15 +42,9 @@ type (
 	}
 )
 
-func (b *Barrier) Guard(fn func()) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	fn()
-}
-
+// NewPeriodicalExecutor ...
 func NewPeriodicalExecutor(interval time.Duration, container TaskContainer) *PeriodicalExecutor {
 	executor := &PeriodicalExecutor{
-		// buffer 1 to let the caller go quickly
 		commander:   make(chan interface{}, 1),
 		interval:    interval,
 		container:   container,
@@ -59,6 +54,7 @@ func NewPeriodicalExecutor(interval time.Duration, container TaskContainer) *Per
 		},
 	}
 
+	// 退出程序时， flush 数据
 	utils.AddShutdownListener(func() {
 		executor.Flush()
 	})
@@ -66,6 +62,7 @@ func NewPeriodicalExecutor(interval time.Duration, container TaskContainer) *Per
 	return executor
 }
 
+// Add ...
 func (pe *PeriodicalExecutor) Add(task interface{}) {
 	if vals, ok := pe.addAndCheck(task); ok {
 		pe.commander <- vals
@@ -73,6 +70,7 @@ func (pe *PeriodicalExecutor) Add(task interface{}) {
 	}
 }
 
+// Flush ...
 func (pe *PeriodicalExecutor) Flush() bool {
 	pe.enterExecution()
 	return pe.executeTasks(func() interface{} {
@@ -82,18 +80,14 @@ func (pe *PeriodicalExecutor) Flush() bool {
 	}())
 }
 
-func (pe *PeriodicalExecutor) Sync(fn func()) {
-	pe.lock.Lock()
-	defer pe.lock.Unlock()
-	fn()
-}
-
+// Wait ...
 func (pe *PeriodicalExecutor) Wait() {
 	pe.wgBarrier.Guard(func() {
 		pe.waitGroup.Wait()
 	})
 }
 
+// addAndCheck 添加数据并检查是否执行的条件
 func (pe *PeriodicalExecutor) addAndCheck(task interface{}) (interface{}, bool) {
 	pe.lock.Lock()
 	defer func() {
@@ -126,8 +120,10 @@ func (pe *PeriodicalExecutor) backgroundFlush() {
 			select {
 			case vals := <-pe.commander:
 				commanded = true
+				// 加锁
 				pe.enterExecution()
 				pe.confirmChan <- utils.Placeholder
+				// 执行待执行的任务
 				pe.executeTasks(vals)
 				last = utils.Now()
 			case <-ticker.C:
@@ -183,4 +179,11 @@ func (pe *PeriodicalExecutor) hasTasks(tasks interface{}) bool {
 		// unknown type, let caller execute it
 		return true
 	}
+}
+
+// Guard 加锁执行函数
+func (b *Barrier) Guard(fn func()) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	fn()
 }
