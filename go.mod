@@ -2,17 +2,19 @@ module go-transfer
 
 go 1.15
 
+replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.5
+
 require (
-	github.com/Shopify/sarama v1.27.2
-	github.com/coreos/etcd v3.3.25+incompatible // indirect
-	github.com/coreos/go-semver v0.3.0 // indirect
-	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
-	github.com/gogo/protobuf v1.3.1 // indirect
-	github.com/google/uuid v1.1.4 // indirect
+	github.com/fortytw2/leaktest v1.3.0 // indirect
+	github.com/google/go-cmp v0.5.4 // indirect
+	github.com/json-iterator/go v1.1.10
+	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/olivere/elastic v6.2.35+incompatible
-	github.com/olivere/elastic/v7 v7.0.22
-	go.etcd.io/etcd v3.3.25+incompatible
-	go.uber.org/zap v1.16.0 // indirect
-	gopkg.in/yaml.v2 v2.2.8
+	github.com/pkg/errors v0.9.1 // indirect
+	github.com/segmentio/kafka-go v0.4.10
+	github.com/spf13/viper v1.7.1
+	golang.org/x/net v0.0.0-20200625001655-4c5254603344 // indirect
+	golang.org/x/sys v0.0.0-20201214210602-f9fddec55a1e // indirect
+	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
+	gopkg.in/yaml.v2 v2.4.0
 )
